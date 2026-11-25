@@ -4,8 +4,6 @@ Trình tùy biến giao diện nền động, màn hình khởi động và hi�
 
 ![Minh họa giao diện Antigravity Custom Theme](docs/demo.webp)
 
-> Mã nguồn này được phát triển và mở rộng dựa trên dự án mã nguồn mở [antigravity-custom-theme-skill](https://github.com/giakiet22102006/antigravity-custom-theme-skill) (giấy phép MIT).
-
 ---
 
 ## Giới thiệu mã nguồn
