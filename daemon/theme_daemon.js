@@ -653,9 +653,98 @@ function createSession(target) {
     ws.addEventListener('error', cleanup);
 }
 
+let browserWs = null;
+let currentBrowserUrl = null;
+
+function connectBrowserTarget(info) {
+    if (!info || !info.port || !info.token) return;
+    const wsUrl = `ws://127.0.0.1:${info.port}${info.token}`;
+    if (browserWs && currentBrowserUrl === wsUrl && browserWs.readyState === 1) return;
+
+    if (browserWs) {
+        try { browserWs.close(); } catch (_) {}
+        browserWs = null;
+    }
+    currentBrowserUrl = wsUrl;
+
+    try {
+        const ws = new globalThis.WebSocket(wsUrl);
+        browserWs = ws;
+        let nextId = 1;
+        function bSend(method, params = {}, sessionId) {
+            return new Promise((resolve, reject) => {
+                if (ws.readyState !== 1) return reject(new Error('Browser WS closed'));
+                const id = nextId++;
+                ws.send(JSON.stringify({ id, method, params, sessionId }));
+                resolve(id);
+            });
+        }
+
+        ws.addEventListener('open', async () => {
+            log('Connected to Antigravity Browser CDP target with instant auto-attach.');
+            try {
+                await bSend('Target.setAutoAttach', {
+                    autoAttach: true,
+                    waitForDebuggerOnStart: false,
+                    flatten: true
+                });
+            } catch (err) {
+                log(`setAutoAttach error: ${err.message}`);
+            }
+        });
+
+        ws.addEventListener('message', async (event) => {
+            try {
+                const msg = JSON.parse(String(event.data));
+                if (msg.method === 'Target.attachedToTarget') {
+                    const { sessionId, targetInfo, waitingForDebugger } = msg.params;
+                    const url = String(targetInfo && targetInfo.url || '');
+                    if (targetInfo && targetInfo.type === 'page' && (url.includes('127.0.0.1') || url.includes('workbench') || url.includes('launchpad') || !url)) {
+                        const src = buildInjectedSource();
+                        if (src) {
+                            try {
+                                await bSend('Page.enable', {}, sessionId);
+                                await bSend('Page.addScriptToEvaluateOnNewDocument', { source: src }, sessionId);
+                                await bSend('Runtime.enable', {}, sessionId);
+                                try { await bSend('Runtime.addBinding', { name: 'agySaveThemeConfig' }, sessionId); } catch (_) {}
+                                await bSend('Runtime.evaluate', { expression: src, awaitPromise: false }, sessionId);
+                            } catch (_) {}
+                        }
+                    }
+                    if (waitingForDebugger) {
+                        try {
+                            await bSend('Runtime.runIfWaitingForDebugger', {}, sessionId);
+                        } catch (_) {}
+                    }
+                }
+            } catch (_) {}
+        });
+
+        const onEnd = () => {
+            if (browserWs === ws) {
+                browserWs = null;
+                currentBrowserUrl = null;
+            }
+        };
+        ws.addEventListener('close', onEnd);
+        ws.addEventListener('error', onEnd);
+    } catch (e) {
+        log(`Failed connecting browser target: ${e.message}`);
+    }
+}
+
 async function scanPages() {
     const info = getPortInfo();
-    if (!info) return;
+    if (!info) {
+        if (browserWs) {
+            try { browserWs.close(); } catch (_) {}
+            browserWs = null;
+            currentBrowserUrl = null;
+        }
+        return;
+    }
+
+    connectBrowserTarget(info);
 
     if (lastPort !== null && lastPort !== info.port) {
         for (const s of sessions.values()) {
@@ -719,8 +808,27 @@ function watchPayload() {
     }
 }
 
+function watchPortDir() {
+    const portFile = resolvePortFile();
+    const portDir = path.dirname(portFile);
+    try {
+        if (!fs.existsSync(portDir)) {
+            fs.mkdirSync(portDir, { recursive: true });
+        }
+        fs.watch(portDir, (_eventType, filename) => {
+            if (filename && filename.toLowerCase().includes('devtoolsactiveport')) {
+                scanPages();
+            }
+        });
+    } catch (_) {}
+}
+
 function shutdown(signal) {
     log(`Shutting down on ${signal}.`);
+    if (browserWs) {
+        try { browserWs.close(); } catch (_) {}
+        browserWs = null;
+    }
     if (mediaServer) {
         try {
             mediaServer.close();
@@ -740,14 +848,28 @@ acquirePidLock();
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('exit', removePidLock);
+process.on('uncaughtException', (err) => {
+    log(`Uncaught exception (kept alive): ${err && err.stack ? err.stack : err}`);
+});
+process.on('unhandledRejection', (reason) => {
+    log(`Unhandled rejection (kept alive): ${reason && reason.stack ? reason.stack : reason}`);
+});
 
 log(`Theme daemon started (PID ${process.pid}, platform=${process.platform}, portFile=${resolvePortFile()}).`);
 startMediaServer();
+
+let scanLoopTimer = null;
+function runAdaptiveScan() {
+    scanPages().catch(() => {});
+    const delay = (sessions.size > 0 && browserWs) ? 400 : 100;
+    scanLoopTimer = setTimeout(runAdaptiveScan, delay);
+}
+
 const readyWait = setInterval(() => {
     if (mediaPort > 0) {
         clearInterval(readyWait);
         watchPayload();
-        scanPages();
-        setInterval(scanPages, 1500);
+        watchPortDir();
+        runAdaptiveScan();
     }
 }, 25);

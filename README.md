@@ -26,7 +26,7 @@ Hệ thống vận hành theo mô hình hai lớp tách biệt nhằm giữ ổn
 ## Tính năng chính
 
 - **Chế độ nền Ảnh tĩnh và Video động tách biệt:** Quản lý riêng danh sách ảnh tĩnh và video đã tải lên; tự động lưu lịch sử mỗi khi chọn tệp mới, hỗ trợ xem trước và xóa trực tiếp từng mục khỏi ổ cứng.
-- **Preset mặc định đi kèm:** Bao gồm `Gemini-chan Live` (`themes/assets/wallpapergeminichan.mp4`), `Furina Live` (`themes/assets/furina-bg.mp4`), `WLOP Cosmic` và `Midnight Obsidian`.
+- **Preset mặc định đi kèm:** Bao gồm `WLOP Cosmic` (hình nền độ phân giải cao kết hợp họa tiết kính viền vàng kim) và `Midnight Obsidian` (thuần gradient CSS siêu nhẹ).
 - **Hiệu ứng vẽ nét và loang màu (Sketch Reveal):** Trích xuất đường nét trực tiếp từ khung hình video hoặc ảnh nền hiện tại qua thuật toán biên cạnh đa kênh màu kết hợp làm mượt đường cong.
 - **Màn hình khởi động (Boot HUD):** Giao diện khởi động kèm âm thanh điều hướng, có thể bật/tắt hoặc phát lại từ bảng cài đặt.
 - **Câu chào tùy chỉnh (Custom Greeting):** Cho phép tự soạn danh sách câu chào ngẫu nhiên hiển thị trên màn hình hội thoại trống bằng bộ phông chữ viết tay đóng gói ngoại tuyến.
@@ -48,8 +48,8 @@ Hệ thống vận hành theo mô hình hai lớp tách biệt nhằm giữ ổn
 ### Bước 1: Tải mã nguồn
 
 ```bash
-git clone https://github.com/furinamikuvn/antigravity-custom-theme-mod.git
-cd antigravity-custom-theme-mod
+git clone https://github.com/Tr-Hieu205/antigravity-theme-studio.git
+cd antigravity-theme-studio
 ```
 
 ### Bước 2: Biên dịch gói giao diện (`dist/theme_payload.js`)

@@ -59,7 +59,7 @@ Set WshShell = CreateObject("WScript.Shell")
 WshShell.CurrentDirectory = "$($RepoRoot.Replace('"', '""'))"
 WshShell.Run """$EscapedNode"" ""$EscapedDaemon""", 0, False
 "@
-Set-Content -Path $VbsPath -Value $VbsContent -Encoding ASCII
+Set-Content -Path $VbsPath -Value $VbsContent -Encoding Unicode
 
 if (-not $NoStartup) {
     $StartupDir = [Environment]::GetFolderPath('Startup')
@@ -75,8 +75,23 @@ if (-not $NoStartup) {
     Write-Host "[install-win] Startup shortcut created: $ShortcutPath"
 }
 
-Write-Host "[install-win] Launching daemon via wscript.exe..."
-Start-Process -FilePath 'wscript.exe' -ArgumentList """$VbsPath""" -WorkingDirectory $RepoRoot
+Write-Host "[install-win] Launching daemon via detached WMI process..."
+$Launched = $false
+try {
+    $WmiResult = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+        CommandLine = "wscript.exe `"$VbsPath`""
+        CurrentDirectory = $RepoRoot
+    } -ErrorAction Stop
+    if ($WmiResult.ReturnValue -eq 0) {
+        $Launched = $true
+    }
+} catch {
+    $Launched = $false
+}
+if (-not $Launched) {
+    Write-Host "[install-win] Fallback: launching daemon via wscript.exe..."
+    Start-Process -FilePath 'wscript.exe' -ArgumentList """$VbsPath""" -WorkingDirectory $RepoRoot
+}
 
 for ($i = 0; $i -lt 15; $i++) {
     Start-Sleep -Milliseconds 250
