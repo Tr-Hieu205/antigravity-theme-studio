@@ -73,6 +73,49 @@ if (-not $NoStartup) {
     $Shortcut.Description = 'Antigravity Custom Theme Daemon'
     $Shortcut.Save()
     Write-Host "[install-win] Startup shortcut created: $ShortcutPath"
+
+    # Configure all Antigravity launch shortcuts & protocol handlers to include --remote-debugging-port=0
+    $TargetAgyExe = Join-Path $env:LOCALAPPDATA 'Programs\antigravity\Antigravity.exe'
+    $DebugFlag = '--remote-debugging-port=0'
+    if (Test-Path $TargetAgyExe) {
+        $DesktopDirs = @([Environment]::GetFolderPath('Desktop'), (Join-Path $env:USERPROFILE 'Desktop')) | Select-Object -Unique
+        foreach ($d in $DesktopDirs) {
+            if (Test-Path $d) {
+                $lnk = Join-Path $d 'Antigravity.lnk'
+                $s = $WshShell.CreateShortcut($lnk)
+                $s.TargetPath = $TargetAgyExe
+                $s.Arguments = $DebugFlag
+                $s.WorkingDirectory = Split-Path $TargetAgyExe -Parent
+                $s.Description = 'Antigravity (Custom Theme Enabled)'
+                $s.Save()
+                Write-Host "[install-win] Configured desktop shortcut: $lnk"
+            }
+        }
+
+        $ProgramsDir = [Environment]::GetFolderPath('Programs')
+        $StartMenuLnks = @(
+            (Join-Path $ProgramsDir 'Antigravity.lnk'),
+            (Join-Path $ProgramsDir 'Antigravity IDE\Antigravity IDE.lnk')
+        )
+        foreach ($lnk in $StartMenuLnks) {
+            $parentDir = Split-Path $lnk -Parent
+            if (Test-Path $parentDir) {
+                $s = $WshShell.CreateShortcut($lnk)
+                $s.TargetPath = $TargetAgyExe
+                $s.Arguments = $DebugFlag
+                $s.WorkingDirectory = Split-Path $TargetAgyExe -Parent
+                $s.Save()
+                Write-Host "[install-win] Configured Start Menu shortcut: $lnk"
+            }
+        }
+
+        # Registry protocol handlers
+        @('HKCU:\Software\Classes\antigravity\shell\open\command', 'HKCU:\Software\Classes\antigravity-ide\shell\open\command') | ForEach-Object {
+            if (Test-Path $_) {
+                Set-ItemProperty -Path $_ -Name '(default)' -Value "`"$TargetAgyExe`" $DebugFlag `"%1`"" -ErrorAction SilentlyContinue
+            }
+        }
+    }
 }
 
 Write-Host "[install-win] Launching daemon via detached WMI process..."
